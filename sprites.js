@@ -533,7 +533,6 @@ const alien_sprite = () => {
   buf.endShape()
   points.length = 0
   return buf.get()
-  return buf.get()
 }
 
 /** @returns {Image} */
