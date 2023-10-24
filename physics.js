@@ -1,4 +1,4 @@
-const GRAVITY = -0.1
+const GRAVITY = -0.075
 
 class VelocityMovement extends System {
   constructor() {
@@ -18,6 +18,9 @@ class VelocityMovement extends System {
     transforms.forEach((t_c, _) => {
       let transform = system_get_transform(t_c)
       transform.pos.add(transform.vel)
+      transform.pos.x = round(transform.pos.x)
+      transform.pos.y = round(transform.pos.y)
+      transform.pos.z = round(transform.pos.z)
     })
   }
 }
@@ -55,10 +58,7 @@ class ApplyGravity extends System {
       let transform = system_get_transform(c)
       let grav_dir = clone_object(gravity.dir)
 
-      // Update position and velocity
-      // using basic newtonian physics
       transform.vel.add(grav_dir.mult(gravity.mag))
-      transform.pos.add(transform.vel)
     })
   }
 }

@@ -14,11 +14,21 @@ class SpriteManager {
   add_sprite(name, img, frame_count = 1) {
     let images = /** @type {Image[]} */ ([])
     for (let i = 0; i < frame_count; i++) {
-      images.push(img.get(0, (img.height / frame_count) * i,
-        img.width,
-        img.height / frame_count))
+      images.push(img.get(
+        (img.width / frame_count) * i, 0,
+        img.width / frame_count,
+        img.height)
+      )
     }
     this.sprite_table.set(name, new Sprite(images))
+  }
+
+  /**
+   * @param {String} name
+   * @param {Image[]} imgs
+   */
+  add_spritesheet(name, imgs) {
+    this.sprite_table.set(name, new Sprite(imgs))
   }
 
   /**
@@ -27,5 +37,13 @@ class SpriteManager {
    */
   get_sprite(name) {
     return this.sprite_table.get(name)
+  }
+
+  /**
+   * @param {String} name
+   * @returns {Image[]}
+   */
+  get_sprite_imgs(name) {
+    return this.sprite_table.get(name).imgs
   }
 }

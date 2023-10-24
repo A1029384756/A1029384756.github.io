@@ -1,15 +1,19 @@
 class Player extends Component {
   constructor() {
     super()
-    this.shot_timer = 1000
+    this.jump_delay = 200
+    this.jump_timer = this.jump_delay
+    this.total_jumps = 2
+    this.jumps_remaining = this.total_jumps
+    this.downward_jump = false
+    this.in_air = false
   }
 }
 
-const PLAYER_X_VEL = 2
-const PLAYER_SPRITE_SIZE = 20
-const PLAYER_SHOT_TIME = 1000
+const PLAYER_SPEED = 1.75
+const PLAYER_JUMP = -1.8
 
-class PlayerControl extends System {
+class PlayerMovement extends System {
   constructor() {
     super()
     this.query_set = [
@@ -20,7 +24,7 @@ class PlayerControl extends System {
     ]
   }
 
-  /** 
+  /**
    * @param {QueryResponse[]} r
    */
   work(r) {
@@ -29,50 +33,42 @@ class PlayerControl extends System {
       let player = system_get_player(p_c)
       let player_transform = system_get_transform(p_c)
 
-      player.shot_timer += deltaTime;
-      if (keyIsDown(LEFT_ARROW)) {
-        player_transform.vel.x -= PLAYER_X_VEL
-      }
-      if (keyIsDown(RIGHT_ARROW)) {
-        player_transform.vel.x += PLAYER_X_VEL
-      }
-
-      if (!keyIsDown(RIGHT_ARROW) && !keyIsDown(LEFT_ARROW)) {
-        player_transform.vel.x = 0
-      }
-
-      player_transform.vel.x = min(max(player_transform.vel.x, -PLAYER_X_VEL), PLAYER_X_VEL)
-
-      if (keyIsDown(32) && player.shot_timer >= 1000) {
-        player.shot_timer = 0
-        game_controller.spawn_entity([
-          new Bullet(),
-          new Lifetime(500),
-          new Transform(
-            createVector(
-              player_transform.pos.x,
-              player_transform.pos.y - PLAYER_SPRITE_SIZE / 2
-            ),
-            createVector(
-              0,
-              -3,
-            ),
-          ),
-          new Collider(BULLET_SPRITE_SIZE, BULLET_SPRITE_SIZE),
-          sprite_manager.get_sprite('bullet'),
-        ])
+      player.jump_timer += deltaTime
+      if (
+        keyIsDown(32) &&
+        keyIsDown(83)
+      ) {
+        player.jump_timer = 0
+        player_transform.vel.y = PLAYER_JUMP * PLAYER_JUMP
+        player.downward_jump = true
+        player.in_air = true
+      } else if (
+        keyIsDown(32) &&
+        player.jump_timer >= player.jump_delay &&
+        player.jumps_remaining > 0
+      ) {
+        player.jump_timer = 0
+        player.jumps_remaining -= 1
+        player_transform.vel.y = PLAYER_JUMP
+        player.downward_jump = false
+        player.in_air = true
       }
 
-      if (player_transform.pos.x < PLAYER_SPRITE_SIZE / 2) {
-        player_transform.pos.x = PLAYER_SPRITE_SIZE / 2
-      } else if (player_transform.pos.x > CANVAS_WIDTH - PLAYER_SPRITE_SIZE / 2) {
-        player_transform.pos.x = CANVAS_WIDTH - PLAYER_SPRITE_SIZE / 2
+      let x_vel = 0
+      if (keyIsDown(68)) {
+        x_vel += PLAYER_SPEED
       }
+      if (keyIsDown(65)) {
+        x_vel -= PLAYER_SPEED
+      }
+      player_transform.vel.x = x_vel
     })
   }
 }
 
-class PlayerCollision extends System {
+const PLAYER_COLLISION_PADDING = 1
+
+class PlayerPhysics extends System {
   constructor() {
     super()
     this.query_set = [
@@ -80,54 +76,18 @@ class PlayerCollision extends System {
         new Player(),
         new Transform(),
         new Collider(),
+        new Gravity(),
       ]),
       new Query([
-        new Missile(),
+        new Ground(),
         new Transform(),
         new Collider(),
       ]),
-    ]
-  }
-
-  /**
-  * @param {QueryResponse[]} r
-  */
-  work(r) {
-    let players = r[0]
-    let missiles = r[1]
-
-    players.forEach((p_c, p_id) => {
-      let player_transform = system_get_transform(p_c)
-      let player_collider = system_get_collider(p_c)
-      missiles.forEach((m_c, m_id) => {
-        let missile_transform = system_get_transform(m_c)
-        let missile_collider = system_get_collider(m_c)
-
-        if (collides(player_transform.pos, player_collider, missile_transform.pos, missile_collider)) {
-          game_controller.spawn_entity([
-            new Explosion(),
-            new Lifetime(10),
-            clone_object(player_transform),
-          ])
-          game_controller.despawn_entity(p_id)
-          game_controller.despawn_entity(m_id)
-          game_controller.lose_game()
-        }
-      })
-    })
-  }
-}
-
-class PlayerVictory extends System {
-  constructor() {
-    super()
-    this.query_set = [
       new Query([
-        new Player(),
+        new Bridge(),
+        new Transform(),
+        new Collider(),
       ]),
-      new Query([
-        new Alien(),
-      ])
     ]
   }
 
@@ -136,15 +96,90 @@ class PlayerVictory extends System {
    */
   work(r) {
     let players = r[0]
-    let aliens = r[1]
+    let ground_tiles = r[1]
+    let bridge_tiles = r[2]
 
-    players.forEach((_) => {
-      let a_count = 0
-      aliens.forEach((_) => {
-        a_count++
-      })
-      if (a_count <= 0) {
-        game_controller.win_game()
+    players.forEach((p_c, _) => {
+      let player = system_get_player(p_c)
+      let player_transform = system_get_transform(p_c)
+      let player_collider = system_get_collider(p_c)
+
+      /** @param {Vector} pos */
+      const collide_at = (pos) => {
+        let collide = false
+
+        for (let [_, g_c] of ground_tiles.entries()) {
+          let ground_transform = system_get_transform(g_c)
+          let ground_collider = system_get_collider(g_c)
+          if (collides(
+            pos,
+            player_collider,
+            ground_transform.pos,
+            ground_collider,
+          )) {
+            collide = true
+            break
+          }
+        }
+
+        for (let [_, b_c] of bridge_tiles.entries()) {
+          let bridge_transform = system_get_transform(b_c)
+          let bridge_collider = system_get_collider(b_c)
+
+          if (collides(
+            pos,
+            player_collider,
+            bridge_transform.pos,
+            bridge_collider,
+          ) && !player.downward_jump) {
+            if ((player_transform.pos.y + player_collider.h / 2) - (bridge_transform.pos.y - bridge_collider.h / 2) < 0) {
+              collide = true
+            }
+            break
+          }
+        }
+
+        return collide
+      }
+
+      player_transform.x_remainder += player_transform.vel.x
+      player_transform.y_remainder += player_transform.vel.y
+      let move_x = round(player_transform.x_remainder)
+      let move_y = round(player_transform.y_remainder)
+
+      if (move_x != 0) {
+        player_transform.x_remainder -= move_x
+        let x_sign = move_x > 0 ? 1 : -1
+        while (move_x != 0) {
+          if (!collide_at(createVector(player_transform.pos.x + x_sign, player_transform.pos.y))) {
+            player_transform.pos.x += x_sign
+            move_x -= x_sign
+          } else {
+            player_transform.vel.x = 0
+            break
+          }
+        }
+      }
+
+      if (move_y != 0) {
+        player_transform.y_remainder -= move_y
+        let y_sign = move_y > 0 ? 1 : -1
+        while (move_y != 0) {
+          if (!collide_at(createVector(player_transform.pos.x, player_transform.pos.y + y_sign))) {
+            player.in_air = true
+            player_transform.pos.y += y_sign
+            move_y -= y_sign
+          } else {
+            player_transform.vel.y = 0
+
+            if (y_sign > 0) {
+              player.jumps_remaining = player.total_jumps
+              player.downward_jump = false
+              player.in_air = false
+            }
+            break
+          }
+        }
       }
     })
   }
