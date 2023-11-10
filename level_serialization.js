@@ -3,7 +3,8 @@ class SerialSprite {
   tile
   /** @type {Number} */
   dir
-  /** @type {Number} */ alpha
+  /** @type {Number} */
+  alpha
   /** @type {Number} */
   depth
 }
@@ -19,6 +20,13 @@ class WorldTile {
   sprite = new SerialSprite()
 }
 
+class SerializedEntity {
+  /** @type {String} */
+  type = ''
+  /** @type {[Number, Number]} */
+  rel_pos = [0, 0]
+}
+
 class Level {
   /** @type {Boolean} */
   top = false
@@ -30,60 +38,40 @@ class Level {
   bottom = false
   /** @type {WorldTile[]} */
   tiles = []
+  /** @type {SerializedEntity[]} */
+  entities = []
+  /** @type {String} */
+  id
 }
 
-class Ground extends Component {}
-class Bridge extends Component {}
+class Ground extends Component { }
+class Bridge extends Component { }
 
 const LEVEL_SIZE = 160
 
 /**
  * @param {Number} x
  * @param {Number} y
- * @param {Number} id
+ * @param {Level} level
  * @returns {Component[][]}
  */
-const get_serialized_level = (x, y, id) => {
+const get_serialized_level = (x, y, level) => {
   let result = /** @type {Component[][]} */ ([])
-  let level = levels[id]
-  let foreground = /** @type {Graphics} */ (createGraphics(LEVEL_SIZE, LEVEL_SIZE))
-  let ground = /** @type {Graphics} */ (createGraphics(LEVEL_SIZE, LEVEL_SIZE))
-  let background = /** @type {Graphics} */ (createGraphics(LEVEL_SIZE, LEVEL_SIZE))
+  let lvl_imgs = sprite_manager.get_sprite_imgs(level.id)
+  let foreground = lvl_imgs[0]
+  let ground = lvl_imgs[1]
+  let background = lvl_imgs[2]
 
-  let tilemap = sprite_manager.get_sprite('tilemap')
   level.tiles.forEach((tile) => {
     let tile_bundle = /** @type {Component[]} */ ([])
     if (tile.has_collider) {
       tile_bundle.push(new Collider(TILE_SIZE, TILE_SIZE))
     }
-    let buf = /** @type {Graphics} */ (createGraphics(TILE_SIZE, TILE_SIZE))
-    if (tile.sprite.dir == 1) {
-      buf.scale(-1, 1)
-      buf.image(tilemap.imgs[tile.sprite.tile], -TILE_SIZE, 0)
-    } else if (tile.sprite.dir == 2) {
-      buf.scale(1, -1)
-      buf.image(tilemap.imgs[tile.sprite.tile], 0, -TILE_SIZE)
-    } else if (tile.sprite.dir == 3) {
-      buf.scale(-1, -1)
-      buf.image(tilemap.imgs[tile.sprite.tile], -TILE_SIZE, -TILE_SIZE)
-    } else {
-      buf.image(tilemap.imgs[tile.sprite.tile], 0, 0)
-    }
-    
+
     if (tile.tile_type == 'Ground') {
       tile_bundle.push(new Ground())
-      ground.image(buf.get(), tile.rel_pos[0], tile.rel_pos[1])
     } else if (tile.tile_type == 'Bridge') {
       tile_bundle.push(new Bridge())
-      ground.image(buf.get(), tile.rel_pos[0], tile.rel_pos[1])
-    } else if (tile.tile_type == 'Water') {
-      foreground.image(buf.get(), tile.rel_pos[0], tile.rel_pos[1])
-    } else if (tile.tile_type == 'Props') {
-      foreground.image(buf.get(), tile.rel_pos[0], tile.rel_pos[1])
-    } else if (tile.tile_type == 'Background_Props') {
-      background.image(buf.get(), tile.rel_pos[0], tile.rel_pos[1])
-    } else if (tile.tile_type == 'Background') {
-      background.image(buf.get(), tile.rel_pos[0], tile.rel_pos[1])
     }
 
     tile_bundle.push(
@@ -96,6 +84,40 @@ const get_serialized_level = (x, y, id) => {
       )
     )
     result.push(tile_bundle)
+  })
+
+  level.entities.forEach(e => {
+    let entity_bundle = /** @type {Component[]} */ ([])
+    if (e.type == 'Goblin') {
+      entity_bundle.push(sprite_manager.get_sprite('Goblin_idle'))
+      entity_bundle.push(
+        new Transform(
+          createVector(
+            x + e.rel_pos[0] + TILE_SIZE,
+            y + e.rel_pos[1] + TILE_SIZE,
+          )
+        )
+      )
+      entity_bundle.push(
+        new Collider(TILE_SIZE, 2 * TILE_SIZE),
+      )
+    } else if (e.type == 'Exit') {
+      entity_bundle.push(sprite_manager.get_sprite('exit_door'))
+      entity_bundle.push(
+        new Transform(
+          createVector(
+            x + e.rel_pos[0] + TILE_SIZE / 2,
+            y + e.rel_pos[1] + TILE_SIZE,
+          )
+        )
+      )
+      entity_bundle.push(
+        new Collider(TILE_SIZE, 2 * TILE_SIZE),
+      )
+      entity_bundle.push(new Exit())
+    }
+
+    result.push(entity_bundle)
   })
 
   result.push([
@@ -117,4 +139,55 @@ const get_serialized_level = (x, y, id) => {
     )
   ])
   return result
+}
+
+/**
+ * @param {Level} level
+ * @returns {Image[]}
+ */
+const create_level_sprite = (level) => {
+  let foreground = /** @type {Graphics} */ (createGraphics(LEVEL_SIZE, LEVEL_SIZE))
+  let ground = /** @type {Graphics} */ (createGraphics(LEVEL_SIZE, LEVEL_SIZE))
+  let background = /** @type {Graphics} */ (createGraphics(LEVEL_SIZE, LEVEL_SIZE))
+  let buf = /** @type {Graphics} */ (createGraphics(TILE_SIZE, TILE_SIZE))
+  let tilemap = sprite_manager.get_sprite('tilemap')
+  level.tiles.forEach((tile) => {
+    let tile_bundle = /** @type {Component[]} */ ([])
+    if (tile.has_collider) {
+      tile_bundle.push(new Collider(TILE_SIZE, TILE_SIZE))
+    }
+    buf.clear(0, 0, 0, 0)
+    buf.push()
+    if (tile.sprite.dir == 1) {
+      buf.scale(-1, 1)
+      buf.image(tilemap.imgs[tile.sprite.tile], -TILE_SIZE, 0)
+    } else if (tile.sprite.dir == 2) {
+      buf.scale(1, -1)
+      buf.image(tilemap.imgs[tile.sprite.tile], 0, -TILE_SIZE)
+    } else if (tile.sprite.dir == 3) {
+      buf.scale(-1, -1)
+      buf.image(tilemap.imgs[tile.sprite.tile], -TILE_SIZE, -TILE_SIZE)
+    } else {
+      buf.image(tilemap.imgs[tile.sprite.tile], 0, 0)
+    }
+    buf.pop()
+
+    if (tile.tile_type == 'Ground') {
+      tile_bundle.push(new Ground())
+      ground.image(buf.get(), tile.rel_pos[0], tile.rel_pos[1])
+    } else if (tile.tile_type == 'Bridge') {
+      tile_bundle.push(new Bridge())
+      ground.image(buf.get(), tile.rel_pos[0], tile.rel_pos[1])
+    } else if (tile.tile_type == 'Water') {
+      foreground.image(buf.get(), tile.rel_pos[0], tile.rel_pos[1])
+    } else if (tile.tile_type == 'Props') {
+      foreground.image(buf.get(), tile.rel_pos[0], tile.rel_pos[1])
+    } else if (tile.tile_type == 'Background_Props') {
+      background.image(buf.get(), tile.rel_pos[0], tile.rel_pos[1])
+    } else if (tile.tile_type == 'Background') {
+      background.image(buf.get(), tile.rel_pos[0], tile.rel_pos[1])
+    }
+  })
+
+  return [foreground.get(), ground.get(), background.get()]
 }

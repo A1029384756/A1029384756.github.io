@@ -1,3 +1,26 @@
+/** 
+ * @param {Function} next_screen 
+ * @param {System} loading_process 
+ */
+const loading_screen = (next_screen = () => { }, loading_process = new System()) => {
+  game_controller.world = game_controller.loading_world
+  game_controller.world = new World()
+
+  game_controller.world.register_system(loading_process)
+  game_controller.world.register_system(new UpdateLoadingBar())
+  game_controller.world.register_system(new RenderUI())
+
+  game_controller.spawn_entity([
+    new UIImage(sprite_manager.get_sprite_imgs('background')),
+    new Transform(createVector(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2)),
+  ])
+  game_controller.spawn_entity([
+    new LoadingBar(next_screen),
+    new UIImage([createImage(100, 10)]),
+    new Transform(createVector(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2)),
+  ])
+}
+
 const start_screen = () => {
   game_controller.world = game_controller.menu_world
 
@@ -52,17 +75,17 @@ const start_screen = () => {
     new Idle(),
   ])
 
-  get_serialized_level(0, 0, 0).forEach((bundle) => {
+  get_serialized_level(0, 0, loaded_levels[0]).forEach((bundle) => {
     game_controller.spawn_entity(bundle)
   })
-  get_serialized_level(0, 160, 2).forEach((bundle) => {
+  get_serialized_level(0, 160, loaded_levels[2]).forEach((bundle) => {
     game_controller.spawn_entity(bundle)
   })
 
   game_controller.spawn_entity([
     new Button(
       sprite_manager.get_sprite_imgs('play_button'),
-      game_world
+      () => loading_screen(game_world, new GeneratingLevel())
     ),
     new Transform(createVector(50, 120)),
   ])
@@ -83,9 +106,29 @@ const start_screen = () => {
 
 const game_world = () => {
   game_controller.world = game_controller.game_world
-  if (game_controller.world.registry.entity_count > 0) {
-    return
-  }
+
+  game_controller.spawn_entity([
+    new Camera(),
+    new Transform(createVector(76, 75)),
+  ])
+
+  game_controller.spawn_entity([
+    new Background(),
+    sprite_manager.get_sprite('background'),
+    new Transform(createVector(150, 75, -Infinity)),
+  ])
+
+  game_controller.spawn_entity([
+    clone_object(sprite_manager.get_sprite('player_idle')),
+    new Player(),
+    new Transform(createVector(80, 88)),
+    new Gravity(),
+    new Collider(
+      8, 15
+    ),
+    new Idle(),
+  ])
+
 }
 
 const tutorial_menu = () => {
@@ -135,12 +178,12 @@ const tutorial_menu = () => {
   punched_sequence = punched_sequence.concat(sprite_manager.get_sprite_imgs('Goblin_idle'))
   punched_sequence = punched_sequence.concat(sprite_manager.get_sprite_imgs('Goblin_idle'))
   punched_sequence = punched_sequence.concat(sprite_manager.get_sprite_imgs('Goblin_idle'))
-  punched_sequence = punched_sequence.concat(sprite_manager.get_sprite_imgs('Goblin_idle').slice(0,2))
+  punched_sequence = punched_sequence.concat(sprite_manager.get_sprite_imgs('Goblin_idle').slice(0, 2))
   punched_sequence = punched_sequence.concat(sprite_manager.get_sprite_imgs('Goblin_damaged'))
   punched_sequence = punched_sequence.concat(sprite_manager.get_sprite_imgs('Goblin_idle'))
   punched_sequence = punched_sequence.concat(sprite_manager.get_sprite_imgs('Goblin_idle'))
   punched_sequence = punched_sequence.concat(sprite_manager.get_sprite_imgs('Goblin_idle'))
-  punched_sequence = punched_sequence.concat(sprite_manager.get_sprite_imgs('Goblin_idle').slice(0,2))
+  punched_sequence = punched_sequence.concat(sprite_manager.get_sprite_imgs('Goblin_idle').slice(0, 2))
   punched_sequence = punched_sequence.concat(sprite_manager.get_sprite_imgs('Goblin_damaged'))
 
   game_controller.spawn_entity([
