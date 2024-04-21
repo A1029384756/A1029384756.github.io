@@ -34,11 +34,11 @@ class RenderSprites extends System {
     // calls
     this.sprite_transforms = []
     /** @type {Transform} */
-    this.filter_transform
+    this.filter_transform = null
     /** @type {Sprite} */
-    this.filter_sprite
+    this.filter_sprite = null
     /** @type {Sprite} */
-    this.sprite
+    this.sprite = null
   }
 
   /**
